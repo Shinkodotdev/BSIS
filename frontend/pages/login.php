@@ -101,6 +101,15 @@
                 });
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
+
+            <?php if(isset($_GET['logout']) && $_GET['logout'] === 'success'): ?>
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Logged Out ✅',
+                    text: 'You have been logged out successfully.',
+                    confirmButtonColor: '#2563eb'
+                });
+            <?php endif; ?>
         };
     </script>
 </body>

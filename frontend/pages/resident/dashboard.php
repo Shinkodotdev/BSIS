@@ -2,165 +2,277 @@
 session_start();
 require_once "../../../backend/config/db.php";
 require_once "../../../backend/auth/login.php";
+require_once "../../../backend/auth/auth_check.php";
+// Redirect if not logged in
 redirectIfNotLoggedIn(['../login.php'], $pdo);
 
+// Get user info from session
 $user_id = $_SESSION['user_id'];
 $name    = $_SESSION['name'] ?? "Resident";
+$role    = $_SESSION['role'] ?? null;
+$status  = $_SESSION['status'] ?? null;
+
+// Allowed roles and statuses
+$allowedRoles = ['Resident'];
+$allowedStatus = ['Approved'];
+
+// Redirect if role not allowed
+if (!in_array($role, $allowedRoles)) {
+    header("Location: ../../pages/unauthorized_page.php"); // make sure this file exists
+    exit;
+}
+
+// Redirect if status not allowed
+if (!in_array($status, $allowedStatus)) {
+    header("Location: ../../pages/unauthorized_page.php");
+    exit;
+}
 
 
-// Fetch recent document requests for the logged-in user only
-$stmt = $pdo->prepare("
-    SELECT document_name, status, requested_at 
-    FROM document_requests 
-    WHERE user_id = :user_id 
-    ORDER BY requested_at DESC 
+// Fetch announcements for Residents and Public
+$announcementsStmt = $pdo->prepare("
+    SELECT announcement_id, announcement_title, announcement_content, announcement_category, announcement_image, created_at
+    FROM announcements
+    WHERE (audience = 'Residents' OR audience = 'Public')
+        AND is_deleted = 0
+        AND is_archived = 0
+        AND status = 'Published'
+    ORDER BY priority DESC, created_at DESC
     LIMIT 5
 ");
-$stmt->execute(['user_id' => $user_id]);
-$documentRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$announcementsStmt->execute();
+$announcements = $announcementsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-
-
+// Fetch events for Residents and Public
+$eventsStmt = $pdo->prepare("
+    SELECT event_id, event_title, event_description, event_start, event_end, event_location, event_type, event_image
+    FROM events
+    WHERE (audience = 'Residents' OR audience = 'Public')
+        AND is_deleted = 0
+        AND is_archived = 0
+        AND status IN ('Upcoming', 'Ongoing')
+    ORDER BY event_start ASC
+    LIMIT 5
+");
+$eventsStmt->execute();
+$events = $eventsStmt->fetchAll(PDO::FETCH_ASSOC);
+// Fetch recent document requests for the logged-in user (avoid undefined variable)
+try {
+    $docStmt = $pdo->prepare("
+        SELECT request_id, document_name, status, requested_at
+        FROM document_requests
+        WHERE user_id = :user_id
+            AND is_deleted = 0
+        ORDER BY requested_at DESC
+        LIMIT 5
+    ");
+    $docStmt->execute(['user_id' => $user_id]);
+    $documentRequests = $docStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // On error, fall back to an empty array so count()/foreach won't explode
+    error_log("Failed to fetch document requests: " . $e->getMessage());
+    $documentRequests = [];
+}
 
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resident Dashboard | Barangay Information System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    <link rel="icon" href="../../assets/images/Logo.webp" type="image/x-icon">
-</head>
+
+<?php include('resident-head.php'); ?>
+
 <body class="bg-gray-100">
 
-<?php include('../../components/DashNav.php'); ?>
+    <?php include('../../components/DashNav.php'); ?>
 
-<main class="pt-24 px-4 sm:px-6 lg:px-10 space-y-8">
+    <main class="pt-24 px-4 sm:px-6 lg:px-10 space-y-8">
+        <!-- ANNOUNCEMENTS AND EVENTS  -->
+        <?php include('../../components/announcement_event_showcase.php'); ?>
 
-    <!-- Welcome Section -->
+        <!-- Quick Action / Highlight Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
-
-    <!-- Quick Action Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <!-- Request Document -->
-        <div onclick="openRequestModal()" class="bg-white shadow-lg rounded-xl p-5 flex items-center justify-between border-l-4 border-blue-500 hover:shadow-xl transition cursor-pointer">
-            <div>
-                <h2 class="text-xs sm:text-sm font-medium text-gray-500 uppercase">Request Document</h2>
-                <p class="text-2xl sm:text-3xl font-extrabold text-gray-800 mt-2">New</p>
-            </div>
-            <div class="bg-blue-100 p-3 rounded-full text-blue-500 text-3xl">
-                <i class="fa-solid fa-file-circle-plus"></i>
-            </div>
-        </div>
-    </div>
-
-    <!-- Recent Document Requests -->
-    <div class="bg-white shadow-md rounded-xl p-6">
-        <h2 class="text-xl font-bold mb-4">Recent Document Requests</h2>
-        <?php if(count($documentRequests) > 0): ?>
-        <div class="overflow-x-auto">
-            <table class="w-full table-auto border-collapse">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="text-left p-2">Document</th>
-                        <th class="text-left p-2">Status</th>
-                        <th class="text-left p-2">Requested At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach($documentRequests as $doc): ?>
-                    <tr class="border-t">
-                        <td class="p-2"><?= htmlspecialchars($doc['document_name']) ?></td>
-                        <td class="p-2"><?= htmlspecialchars($doc['status']) ?></td>
-                        <td class="p-2"><?= date('M d, Y', strtotime($doc['requested_at'])) ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php else: ?>
-        <p class="text-gray-500">No recent document requests.</p>
-        <?php endif; ?>
-    </div>
-</main>
-
-<!-- Request Document Modal -->
-<div id="requestModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 overflow-auto p-4">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg md:max-w-xl lg:max-w-2xl p-6 relative mx-auto my-6">
-        <button onclick="closeRequestModal()" class="absolute top-3 right-3 text-gray-600 hover:text-black">
-            <i class="fa-solid fa-xmark text-2xl"></i>
-        </button>
-        <form action="submit_request.php" method="POST" class="space-y-4 overflow-auto max-h-[80vh]">
-            <div x-data="{ open: false, selected: '', options: [
-                'Barangay Indigency (Format)','First Time Job Seeker','Oath of Undertaking','Non Residency Certificate',
-                'Travel Permit','Cert of Guardianship','Brgy Clearance','Indigency for Medical','Indigency for CHED',
-                'Same Person Certificate','Residency','Endorsment Letter for Mayor','Certificate for Electricity',
-                'Certificate of Low Income','Cert of Good Moral','Cert of Living Together Proof of Income'
-            ]}" class="relative w-full">
-                <label class="block text-gray-700 mb-1 font-medium">Document Name</label>
-                <div @click="open = !open" class="w-full border border-gray-300 rounded-lg p-2 pl-3 pr-10 text-gray-700 cursor-pointer flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
-                    <span x-text="selected || 'Select a document'"></span>
-                    <i :class="open ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" class="text-gray-400"></i>
+            <!-- Announcements & Events -->
+            <a href="../landing-page/Announcements.php" target="_blank"
+                class="bg-yellow-50 border-l-4 border-yellow-400 shadow-lg rounded-xl p-5 flex items-center justify-between hover:shadow-xl transition">
+                <div>
+                    <h2 class="text-xs sm:text-sm font-medium text-yellow-700 uppercase">Announcements & Events</h2>
+                    <p class="text-2xl sm:text-3xl font-extrabold text-yellow-800 mt-2">View</p>
                 </div>
-                <ul x-show="open" @click.outside="open = false" x-transition class="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto text-gray-700">
-                    <template x-for="option in options" :key="option">
-                        <li @click="selected = option; open = false" class="px-3 py-2 hover:bg-blue-100 cursor-pointer" :class="selected === option ? 'bg-blue-200 font-semibold' : ''" x-text="option"></li>
-                    </template>
-                </ul>
-                <input type="hidden" name="document_name" :value="selected" required>
+                <div class="bg-yellow-100 p-3 rounded-full text-yellow-500 text-3xl">
+                    <i class="fa-solid fa-bullhorn"></i>
+                </div>
+            </a>
+
+            <!-- Health Survey Reports -->
+            <a href="health/view_reports.php"
+                class="bg-green-50 border-l-4 border-green-400 shadow-lg rounded-xl p-5 flex items-center justify-between hover:shadow-xl transition">
+                <div>
+                    <h2 class="text-xs sm:text-sm font-medium text-green-700 uppercase">Health Reports</h2>
+                    <p class="text-2xl sm:text-3xl font-extrabold text-green-800 mt-2">View</p>
+                </div>
+                <div class="bg-green-100 p-3 rounded-full text-green-500 text-3xl">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+            </a>
+
+            <!-- Request Documents -->
+            <div onclick="openRequestModal()"
+                class="bg-blue-50 border-l-4 border-blue-400 shadow-lg rounded-xl p-5 flex items-center justify-between cursor-pointer hover:shadow-xl transition">
+                <div>
+                    <h2 class="text-xs sm:text-sm font-medium text-blue-700 uppercase">Request Document</h2>
+                    <p class="text-2xl sm:text-3xl font-extrabold text-blue-800 mt-2">New</p>
+                </div>
+                <div class="bg-blue-100 p-3 rounded-full text-blue-500 text-3xl">
+                    <i class="fa-solid fa-file-circle-plus"></i>
+                </div>
             </div>
-            <div>
-                <label class="block text-gray-700 mb-1 font-medium">Purpose</label>
-                <textarea name="purpose" class="w-full border p-2 rounded resize-none" rows="4" required></textarea>
-            </div>
-            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full md:w-auto">Submit Request</button>
-        </form>
+
+            <!-- Profile -->
+            <a href="profile.php"
+                class="bg-pink-50 border-l-4 border-pink-400 shadow-lg rounded-xl p-5 flex items-center justify-between hover:shadow-xl transition">
+                <div>
+                    <h2 class="text-xs sm:text-sm font-medium text-pink-700 uppercase">Profile</h2>
+                    <p class="text-2xl sm:text-3xl font-extrabold text-pink-800 mt-2">View</p>
+                </div>
+                <div class="bg-pink-100 p-3 rounded-full text-pink-500 text-3xl">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+            </a>
+
+        </div>
+        <!-- Recent Document Requests Table -->
+        <div class="bg-white shadow-md rounded-xl p-6 mt-8">
+            <h2 class="text-xl font-bold mb-4">Recent Document Requests</h2>
+
+            <?php if (!empty($documentRequests)): ?>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="text-left p-2">Document</th>
+                                <th class="text-left p-2">Status</th>
+                                <th class="text-left p-2">Requested At</th>
+                                <th class="text-left p-2">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($documentRequests as $doc): ?>
+                                <tr class="border-t">
+                                    <td class="p-2"><?= htmlspecialchars($doc['document_name'] ?? 'N/A') ?></td>
+                                    <td class="p-2"><?= htmlspecialchars($doc['status'] ?? 'N/A') ?></td>
+                                    <td class="p-2"><?= !empty($doc['requested_at']) ? date('M d, Y', strtotime($doc['requested_at'])) : 'N/A' ?></td>
+                                    <td class="p-2">
+                                        <a
+                                            href="../../components/document_format.php?request_id=<?= urlencode($doc['request_id']) ?>"
+                                            target="_blank"
+                                            class="inline-block bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition">
+                                            View
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <p class="text-gray-500">No recent document requests.</p>
+            <?php endif; ?>
+        </div>
+
+
+    </main>
+    <!-- Document Request Modal -->
+    <div id="requestModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h2 id="modalTitle" class="text-xl font-bold mb-4">Request Document</h2>
+
+            <form id="requestForm" class="space-y-4">
+                <!-- Select Document -->
+                <div>
+                    <label for="documentName" class="block text-sm font-medium">Select Document</label>
+                    <div class="max-h-40 overflow-y-auto border rounded">
+                        <select name="document_name" id="documentName" class="w-full p-2" size="6" required>
+                            <option value="First Time Job Seeker">First Time Job Seeker</option>
+                            <option value="Certificate of Indigency">Certificate of Indigency</option>
+                            <option value="Travel Permit">Travel Permit</option>
+                            <option value="Certificate of Living Together">Certificate of Living Together</option>
+                            <option value="Proof of Income">Proof of Income</option>
+                            <option value="Same Person Certificate">Same Person Certificate</option>
+                            <option value="Oath of Undertaking">Oath of Undertaking</option>
+                            <option value="Certificate of Guardianship">Certificate of Guardianship</option>
+                            <option value="Certificate of Residency">Certificate of Residency</option>
+                            <option value="Endorsement Letter for Mayor">Endorsement Letter for Mayor</option>
+                            <option value="Certificate for Electricity">Certificate for Electricity</option>
+                            <option value="Certificate of Low Income">Certificate of Low Income</option>
+                            <option value="Business Permit">Business Permit</option>
+                            <option value="Barangay Clearance">Barangay Clearance</option>
+                        </select>
+                    </div>
+                </div>
+
+
+                <!-- Purpose -->
+                <div>
+                    <label for="purpose" class="block text-sm font-medium">Purpose</label>
+                    <textarea name="purpose" id="purpose" rows="3" class="w-full border rounded p-2" required></textarea>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeRequestModal()" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Submit</button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
+    <script>
+        // Simple carousel auto-slide for announcements and events
+        const slidePositions = {};
 
-<script>
-    // Modal Functions
-    function openRequestModal() {
-        document.getElementById('requestModal').classList.remove('hidden');
-        document.getElementById('requestModal').classList.add('flex');
-    }
-    function closeRequestModal() {
-        document.getElementById('requestModal').classList.add('hidden');
-        document.getElementById('requestModal').classList.remove('flex');
-    }
+        function nextSlide(id) {
+            const carousel = document.getElementById(id);
+            if (!carousel) return;
+            const container = carousel.children[0];
+            slidePositions[id] = (slidePositions[id] || 0) + 1;
+            if (slidePositions[id] >= container.children.length) slidePositions[id] = 0;
+            container.style.transform = `translateX(-${container.children[0].offsetWidth * slidePositions[id]}px)`;
+        }
+        setInterval(() => nextSlide('announcementsCarousel'), 5000);
+        setInterval(() => nextSlide('eventsCarousel'), 7000);
+    </script>
 
-    // Carousel Logic
-    const slidePositions = {};
-    function nextSlide(id) { slidePositions[id] = (slidePositions[id]||0)+1; updateCarousel(id); }
-    function prevSlide(id) { slidePositions[id] = (slidePositions[id]||0)-1; updateCarousel(id); }
-    function updateCarousel(id){
-        const carousel = document.getElementById(id);
-        if(slidePositions[id]>=carousel.children.length) slidePositions[id]=0;
-        if(slidePositions[id]<0) slidePositions[id]=carousel.children.length-1;
-        carousel.style.transform = `translateX(-${carousel.children[0].offsetWidth*slidePositions[id]}px)`;
-    }
-    setInterval(()=>nextSlide('eventsCarousel'),5000);
-    setInterval(()=>nextSlide('announcementsCarousel'),7000);
+    <script>
+        function openRequestModal() {
+            const modal = document.getElementById('requestModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex', 'items-center', 'justify-center');
+        }
 
-    // Logout Confirmation
-    function confirmLogout() {
-        Swal.fire({
-            title:'Are you sure?',
-            text:"You will be logged out.",
-            icon:'warning',
-            showCancelButton:true,
-            confirmButtonColor:'#d33',
-            cancelButtonColor:'#3085d6',
-            confirmButtonText:'Yes, log me out',
-            cancelButtonText:'Cancel'
-        }).then((result)=>{
-            if(result.isConfirmed) window.location.href='../../../backend/auth/logout.php';
+        function closeRequestModal() {
+            const modal = document.getElementById('requestModal');
+            modal.classList.remove('flex', 'items-center', 'justify-center');
+            modal.classList.add('hidden');
+        }
+
+        // Handle form submit
+        document.getElementById('requestForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            fetch('../../../backend/requests/add_request.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message || 'Request submitted successfully!');
+                    closeRequestModal();
+                    location.reload(); // refresh to show in "Recent Requests"
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Something went wrong.');
+                });
         });
-    }
-</script>
+    </script>
 </body>
+
 </html>

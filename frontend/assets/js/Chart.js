@@ -3,7 +3,7 @@ let populationChart;
 // Function to render Chart
 function renderChart(labels, aliveData, deadData) {
     const ctx = document.getElementById('populationChart').getContext('2d');
-    if (populationChart) populationChart.destroy(); // Remove old chart if exists
+    if (populationChart) populationChart.destroy(); // Destroy old chart
 
     populationChart = new Chart(ctx, {
         type: 'line',
@@ -18,6 +18,7 @@ function renderChart(labels, aliveData, deadData) {
                     fill: true,
                     tension: 0.3,
                     pointRadius: 4,
+                    pointHoverRadius: 6,
                     pointBackgroundColor: 'rgba(34,197,94,1)'
                 },
                 {
@@ -28,6 +29,7 @@ function renderChart(labels, aliveData, deadData) {
                     fill: true,
                     tension: 0.3,
                     pointRadius: 4,
+                    pointHoverRadius: 6,
                     pointBackgroundColor: 'rgba(239,68,68,1)'
                 }
             ]
@@ -36,7 +38,16 @@ function renderChart(labels, aliveData, deadData) {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { position: 'top' } },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            },
             scales: {
                 x: { title: { display: true, text: 'Period' } },
                 y: { beginAtZero: true, title: { display: true, text: 'Count' } }
@@ -48,7 +59,8 @@ function renderChart(labels, aliveData, deadData) {
 // ========================
 // Load initial chart (last 12 months)
 document.addEventListener('DOMContentLoaded', function() {
-    fetchPopulationData({ filter_type: 'last12months' });
+   fetchPopulationData({ filter_type: 'year', year: new Date().getFullYear() });
+
 });
 
 // ========================
@@ -71,9 +83,9 @@ document.getElementById('applyFilter').addEventListener('click', function () {
     const filterType = document.getElementById('filter_type').value;
     let params = { filter_type: filterType };
 
-    if(filterType==='month') params.month = document.getElementById('monthFilter').value;
-    if(filterType==='year') params.year = document.getElementById('yearFilter').value;
-    if(filterType==='day') params.day = document.getElementById('dayFilter').value;
+    if(filterType==='month') params.month = document.querySelector('#monthFilter input')?.value;
+    if(filterType==='year') params.year = document.querySelector('#yearFilter input')?.value;
+    if(filterType==='day') params.day = document.querySelector('#dayFilter input')?.value;
     if(filterType==='range'){
         params.start = document.getElementById('startDate').value;
         params.end = document.getElementById('endDate').value;
@@ -85,16 +97,25 @@ document.getElementById('applyFilter').addEventListener('click', function () {
 // ========================
 // Fetch population data from controller
 function fetchPopulationData(params) {
-    fetch("../../../backend/controllers/populationController.php", {
+    fetch("../../../backend/controllers/PopulationController.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params)
     })
     .then(res => res.json())
     .then(data => {
+        if(data.error){
+            Swal.fire('No Data', data.error, 'info');
+            if (populationChart) populationChart.destroy();
+            return;
+        }
+
         if(data.labels && data.alive && data.dead){
             renderChart(data.labels, data.alive, data.dead);
         }
     })
-    .catch(err => console.error('Error fetching population data:', err));
+    .catch(err => {
+        console.error('Error fetching population data:', err);
+        Swal.fire('Error', 'Failed to load population data', 'error');
+    });
 }

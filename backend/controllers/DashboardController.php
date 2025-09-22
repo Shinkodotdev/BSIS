@@ -36,7 +36,7 @@ class DashboardController
             "),
             'announcements' => $this->getCount("
                 SELECT COUNT(*) FROM announcements 
-                WHERE status = 'Published' AND is_deleted = 0 AND is_archived = 0
+                WHERE status = 'Published' AND is_archived = 0
             "),
             'population' => $this->getCount("
                 SELECT COUNT(*) FROM users 

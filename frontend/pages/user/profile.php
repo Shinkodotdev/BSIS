@@ -1,14 +1,13 @@
 <?php
 session_start();
 include('../../../backend/config/db.php');
-require_once "../../../backend/auth/auth_check.php";
 
 // ✅ Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit();
 }
-
+$status = $_SESSION['status'] ?? 'Pending'; 
 $user_id = $_SESSION['user_id'];
 
 // ✅ Fetch all profile-related data
@@ -31,7 +30,6 @@ foreach ($queries as $key => $sql) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -43,9 +41,7 @@ foreach ($queries as $key => $sql) {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="icon" href="../../assets/images/Logo.webp" type="image/x-icon">
 </head>
-
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-6">
-
     <div class="bg-white shadow-lg rounded-2xl p-6 sm:p-10 w-full max-w-6xl">
         <h1 class="text-3xl font-bold mb-8 text-center text-indigo-600">My Profile</h1>
         <p>Please Check your information and wait for the email verification of the admin to be approved.</p>
@@ -144,8 +140,8 @@ foreach ($queries as $key => $sql) {
                         <div><span class="font-semibold">Household Head Occupation:</span> <?= htmlspecialchars($data['income']['household_head_occupation']); ?></div>
                         <div class="sm:col-span-2">
                             <span class="font-semibold">Income Proof:</span><br>
-                            <?php if ($data['income']['income_proof']): ?>
-                                <img src="<?= htmlspecialchars(str_replace('..', '/Barangay_Information_System', $data['income']['income_proof'])); ?>"
+                            <?php if (!empty($data['income']['income_proof'])): ?>
+                                <img src="<?= '/Barangay_Information_System/uploads/income_proof/' . basename($data['income']['income_proof']); ?>"
                                     class="w-full max-w-md h-auto rounded shadow-md mt-2">
                             <?php else: ?>
                                 <span class="text-gray-500 italic">No proof uploaded</span>
@@ -162,29 +158,28 @@ foreach ($queries as $key => $sql) {
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                         <div>
                             <span class="font-semibold">Front ID</span><br>
-                            <?php if ($data['identity']['front_valid_id_path']): ?>
-                                <img src="<?= htmlspecialchars(str_replace('..', '/Barangay_Information_System', $data['identity']['front_valid_id_path'])); ?>"
+                            <?php if (!empty($data['identity']['front_valid_id_path'])): ?>
+                                <img src="<?= '/Barangay_Information_System/uploads/front_id/' . basename($data['identity']['front_valid_id_path']); ?>"
                                     class="mx-auto w-full max-w-xs h-auto rounded shadow">
                             <?php endif; ?>
                         </div>
                         <div>
                             <span class="font-semibold">Back ID</span><br>
-                            <?php if ($data['identity']['back_valid_id_path']): ?>
-                                <img src="<?= htmlspecialchars(str_replace('..', '/Barangay_Information_System', $data['identity']['back_valid_id_path'])); ?>"
+                            <?php if (!empty($data['identity']['back_valid_id_path'])): ?>
+                                <img src="<?= '/Barangay_Information_System/uploads/back_id/' . basename($data['identity']['back_valid_id_path']); ?>"
                                     class="mx-auto w-full max-w-xs h-auto rounded shadow">
                             <?php endif; ?>
                         </div>
                         <div>
                             <span class="font-semibold">Selfie</span><br>
-                            <?php if ($data['identity']['selfie_with_id']): ?>
-                                <img src="<?= htmlspecialchars(str_replace('..', '/Barangay_Information_System', $data['identity']['selfie_with_id'])); ?>"
+                            <?php if (!empty($data['identity']['selfie_with_id'])): ?>
+                                <img src="<?= '/Barangay_Information_System/uploads/selfie_id/' . basename($data['identity']['selfie_with_id']); ?>"
                                     class="mx-auto w-full max-w-xs h-auto rounded shadow">
                             <?php endif; ?>
                         </div>
                     </div>
                 </section>
             <?php endif; ?>
-
         <?php else: ?>
             <p class="text-red-500 text-center">No profile data found. Please update your profile.</p>
         <?php endif; ?>

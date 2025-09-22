@@ -175,7 +175,7 @@ class AuthController
         $redirectUrl = '';
         switch ($user['status']) {
             case "Pending":
-                $redirectUrl = "../../frontend/pages/status/pending.php";
+                $redirectUrl = "../../frontend/pages/pending/pending.php";
                 break;
             case "Rejected":
                 $redirectUrl = "../../frontend/pages/status/rejected.php";

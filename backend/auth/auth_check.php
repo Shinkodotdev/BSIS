@@ -33,7 +33,7 @@ $userId   = $_SESSION['user_id'] ?? null; // <-- Add this
 // ✅ Include JS for real-time status check
 echo '<script>
 function checkUserStatus() {
-    fetch("../../frontend/pages/check_status.php")
+    fetch("../../../frontend/pages/check_status.php")
         .then(res => res.json())
         .then(data => {
             if (data.redirect) {

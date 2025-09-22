@@ -105,24 +105,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 </div>
             </div>
         </section>
-
-        <!-- Community Section -->
-        <section class="py-16 bg-gray-100">
-            <div class="container mx-auto px-6">
-                <h2 class="text-3xl font-bold text-center mb-12 text-indigo-700">Community</h2>
-                <div class="items-center text-center">
-                    <!-- Officials -->
-                    <div class="bg-white shadow-lg rounded-lg overflow-hidden p-6 hover:shadow-xl transition cursor-pointer w-50">
-                        <i class="fas fa-users text-indigo-600 text-4xl mb-4"></i>
-                        <h3 class="text-xl font-semibold mb-2">Barangay Officials</h3>
-                        <p class="text-gray-600 mb-4">Meet your officials and learn about their roles.</p>
-                        <a href="./frontend/pages/landing-page/About.php" class="text-indigo-700 font-semibold hover:underline">Meet Officials</a>
-                    </div>
-                </div>
-            </div>
-        </section>
-        <!-- ChatBot-->
-        <?php include './frontend/components/ChatBot.php'; ?>
         <!-- Footer -->
         <?php include './frontend/components/Footer.php'; ?>
     </main>
@@ -182,7 +164,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
             document.getElementById('contacts-modal').classList.remove('flex');
         }
     </script>
-    <script src="./frontend/assets/js/Chatbot.js"></script>
 </body>
 
 

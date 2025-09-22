@@ -1,29 +1,15 @@
 <?php
 session_start();
 require_once "../../../backend/config/db.php";
-require_once "../../../backend/auth/login.php"; // make sure redirectIfNotLoggedIn() is defined here
+require_once "../../../backend/auth/login.php";
 require_once "../../../backend/auth/auth_check.php";
-
-// Allowed roles and statuses
-$allowedRoles = ['Resident'];
-$allowedStatus = ['Verified'];
-$status = $_SESSION['status'] ?? 'Resident';
-
-// Redirect if not logged in
-redirectIfNotLoggedIn(['../login.php'], $pdo);
-
-// Redirect if status is not allowed
-if (!in_array($_SESSION['status'], $allowedStatus)) {
-    header("Location: $unauthorizedPath");
-    exit;
-}
-
-// Fetch user details
-$user_id = $_SESSION['user_id']; // make sure user_id is in session
-
+require_once "./user_check.php";
+// ✅ If all checks passed → fetch user details
+$status = $_SESSION['status'] ?? 'Verified'; 
+$user_id = $_SESSION['user_id'];
 $stmt = $pdo->prepare("
     SELECT 
-        d.*, -- includes photo, pwd_status, senior_citizen_status, etc.
+        d.*, 
         r.house_no, r.purok, r.barangay, r.municipality, r.province, 
         r.years_residency, r.household_head, r.house_type, 
         r.ownership_status, r.previous_address,
@@ -53,33 +39,19 @@ $stmt = $pdo->prepare("
 $stmt->execute([$user_id]);
 $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Barangay Information System Poblacion Sur">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Dashboard | Barangay Information System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="icon" href="../../assets/images/Logo.webp" type="image/x-icon">
-</head>
+<?php include('./user_head.php'); ?>
 
 <body class="bg-gray-100 font-sans">
-
     <!-- Navbar -->
     <?php include('../../components/DashNav.php'); ?>
-
     <!-- Main Content -->
-    <div class="min-h-screen pt-14 flex justify-center">
-        <main id="main-content" class="w-full  pb-24">
+    <div class="min-h-screen pt-16 px-4 sm:px-6 lg:px-8">
+        <main id="main-content" class="w-full pb-24">
             <!-- Profile Form -->
             <form action="../../../backend/actions/save_profile.php" method="POST" enctype="multipart/form-data"
-                class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 1xl:grid-cols-4 justify-items-center pl-20 pr-10">
+                class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3  justify-items-center">
 
                 <!-- 1. User Details -->
                 <div class="bg-white shadow-md rounded-xl p-6 hover:shadow-xl transition duration-300 w-full max-w-md">
@@ -90,21 +62,18 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                         <input type="text" name="l_name" value="<?php echo strtoupper($userDetails['l_name'] ?? ''); ?>" placeholder="Last Name *" class="border rounded-lg p-3 w-full uppercase" required>
                         <select name="ext_name" class="border rounded-lg p-3 w-full uppercase">
                             <option value="">Ext. Name</option>
-                            <option value="Jr." <?php echo strtoupper($userDetails['ext_name'] ?? '') === 'JR' ? 'selected' : ''; ?>>Jr.</option>
-                            <option value="Sr." <?php echo strtoupper($userDetails['ext_name'] ?? '') === 'SR' ? 'selected' : ''; ?>>Sr.</option>
+                            <option value="Jr" <?php echo strtoupper($userDetails['ext_name'] ?? '') === 'JR' ? 'selected' : ''; ?>>Jr.</option>
+                            <option value="Sr" <?php echo strtoupper($userDetails['ext_name'] ?? '') === 'SR' ? 'selected' : ''; ?>>Sr.</option>
                             <option value="II" <?php echo strtoupper($userDetails['ext_name'] ?? '') === 'II' ? 'selected' : ''; ?>>II</option>
                             <option value="III" <?php echo strtoupper($userDetails['ext_name'] ?? '') === 'III' ? 'selected' : ''; ?>>III</option>
                             <option value="IV" <?php echo strtoupper($userDetails['ext_name'] ?? '') === 'IV' ? 'selected' : ''; ?>>IV</option>
-
                         </select>
-
                         <select name="gender" class="border rounded-lg p-3 w-full" required>
                             <option value="">SELECT GENDER *</option>
                             <option value="MALE" <?php echo ($userDetails['gender'] ?? '') === 'MALE' ? 'selected' : ''; ?>>MALE</option>
                             <option value="FEMALE" <?php echo ($userDetails['gender'] ?? '') === 'FEMALE' ? 'selected' : ''; ?>>FEMALE</option>
                             <option value="LGBTQ" <?php echo ($userDetails['gender'] ?? '') === 'LGBTQ' ? 'selected' : ''; ?>>LGBTQ</option>
                         </select>
-
                         <select id="civil_status" name="civil_status" class="border rounded-lg p-3 w-full uppercase" required>
                             <option value="">CIVIL STATUS *</option>
                             <option value="Single" <?php echo ($userDetails['civil_status'] ?? '') === 'Single' ? 'selected' : ''; ?>>Single</option>
@@ -112,7 +81,6 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                             <option value="Widowed" <?php echo ($userDetails['civil_status'] ?? '') === 'Widowed' ? 'selected' : ''; ?>>Widowed</option>
                             <option value="Separated" <?php echo ($userDetails['civil_status'] ?? '') === 'Separated' ? 'selected' : ''; ?>>Separated</option>
                         </select>
-
                         <select name="occupation" class="border rounded-lg p-3 w-full uppercase" required>
                             <option value="">OCUPATION *</option>
                             <option value="Student" <?php echo ($userDetails['occupation'] ?? '') === 'Student' ? 'selected' : ''; ?>>Student</option>
@@ -123,7 +91,6 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                             <option value="Business Owner" <?php echo ($userDetails['occupation'] ?? '') === 'Business Owner' ? 'selected' : ''; ?>>Business Owner</option>
                             <option value="Unemployed" <?php echo ($userDetails['occupation'] ?? '') === 'Unemployed' ? 'selected' : ''; ?>>Unemployed</option>
                         </select>
-
                         <select name="nationality" class="border rounded-lg p-3 w-full uppercase" required>
                             <option value="">NATIONALITY *</option>
                             <option value="Filipino" <?php echo ($userDetails['nationality'] ?? '') === 'Filipino' ? 'selected' : ''; ?>>Filipino</option>
@@ -155,7 +122,6 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                             <option value="AB+" <?php echo ($userDetails['blood_type'] ?? '') === 'AB+' ? 'selected' : ''; ?>>AB+</option>
                             <option value="AB-" <?php echo ($userDetails['blood_type'] ?? '') === 'AB-' ? 'selected' : ''; ?>>AB-</option>
                         </select>
-
                         <select name="educational_attainment" class="border rounded-lg p-3 w-full">
                             <option value="">EDUCATION ATTAINMENT</option>
                             <option value="ELEMENTARY" <?php echo ($userDetails['educational_attainment'] ?? '') === 'ELEMENTARY' ? 'selected' : ''; ?>>ELEMENTARY</option>
@@ -164,13 +130,11 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                             <option value="VOCATIONAL" <?php echo ($userDetails['educational_attainment'] ?? '') === 'VOCATIONAL' ? 'selected' : ''; ?>>VOCATIONAL</option>
                             <option value="POSTGRADUATE" <?php echo ($userDetails['educational_attainment'] ?? '') === 'POSTGRADUATE' ? 'selected' : ''; ?>>POSTGRADUATE</option>
                         </select>
-
                         <select name="voter_status" class="border rounded-lg p-3 w-full" required>
                             <option value="">VOTER STATUS *</option>
                             <option value="YES" <?php echo ($userDetails['voter_status'] ?? '') === 'YES' ? 'selected' : ''; ?>>YES</option>
                             <option value="NO" <?php echo ($userDetails['voter_status'] ?? '') === 'NO' ? 'selected' : ''; ?>>NO</option>
                         </select>
-
                         <div class="flex">
                             <span class="inline-flex items-center px-3 border border-r-0 rounded-l bg-gray-100">+63</span>
                             <input type="text" name="contact_no" value="<?php echo $userDetails['contact_no'] ?? ''; ?>" placeholder="9123456789" class="border rounded-r-lg p-3 w-full" pattern="[0-9]{10}" maxlength="10" required>
@@ -246,7 +210,6 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                             <option value="YES" <?php echo ($userDetails['household_head'] ?? '') === 'YES' ? 'selected' : ''; ?>>YES</option>
                             <option value="NO" <?php echo ($userDetails['household_head'] ?? '') === 'NO' ? 'selected' : ''; ?>>NO</option>
                         </select>
-
                         <select name="house_type" class="border rounded p-2 w-full" required>
                             <option value="">HOUSE TYPE *</option>
                             <option value="HOUSE" <?php echo ($userDetails['house_type'] ?? '') === 'HOUSE' ? 'selected' : ''; ?>>HOUSE</option>
@@ -261,9 +224,7 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                             <option value="LIVING WITH RELATIVES" <?php echo ($userDetails['ownership_status'] ?? '') === 'LIVING WITH RELATIVES' ? 'selected' : ''; ?>>LIVING WITH RELATIVES</option>
                         </select>
                         <input type="text" name="previous_address" value="<?php echo $userDetails['previous_address'] ?? ''; ?>" placeholder="Previous Address (if any)" class="border rounded p-2 w-full uppercase">
-
                     </div>
-
                 </div>
 
                 <!-- 4. Family Information -->
@@ -330,7 +291,6 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                     </div>
                 </div>
 
-
                 <!-- 5. Health Survey -->
                 <div class="bg-white shadow-md rounded-xl p-6 hover:shadow-xl transition duration-300 w-full max-w-md">
                     <h2 class="text-xl font-bold mb-4">Health Survey</h2>
@@ -374,9 +334,11 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                         <!-- Vaccination -->
                         <select name="vaccination_status" class="border rounded p-2 w-full" required>
                             <option value="">VACCINATION *</option>
-                            <option value="Complete" <?php echo ($userDetails['vaccination_status'] ?? '') === 'Complete' ? 'selected' : ''; ?>>Complete</option>
-                            <option value="Incomplete" <?php echo ($userDetails['vaccination_status'] ?? '') === 'Incomplete' ? 'selected' : ''; ?>>Incomplete</option>
                             <option value="Not Vaccinated" <?php echo ($userDetails['vaccination_status'] ?? '') === 'Not Vaccinated' ? 'selected' : ''; ?>>Not Vaccinated</option>
+                            <option value="Partially Vaccinated" <?php echo ($userDetails['vaccination_status'] ?? '') === 'Partially Vaccinated' ? 'selected' : ''; ?>>Partially Vaccinated</option>
+                            <option value="Fully Vaccinated" <?php echo ($userDetails['vaccination_status'] ?? '') === 'Fully Vaccinated' ? 'selected' : ''; ?>>Fully Vaccinated</option>
+                            <option value="Boostered" <?php echo ($userDetails['vaccination_status'] ?? '') === 'Boostered' ? 'selected' : ''; ?>>Boostered</option>
+
                         </select>
 
                         <!-- Height & Weight -->
@@ -405,7 +367,6 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                             placeholder="ADDITIONAL HEALTH REMARKS..."><?php echo strtoupper($userDetails['health_remarks'] ?? ''); ?></textarea>
                     </div>
                 </div>
-
 
                 <!-- 6. Income & Household Info -->
                 <div class="bg-white shadow-md rounded-xl p-6 hover:shadow-xl transition duration-300 w-full max-w-md">
@@ -464,7 +425,6 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
                     </button>
                 </div>
             </form>
-
             <!-- SweetAlert2 Reminder -->
             <script>
                 Swal.fire({
@@ -477,46 +437,7 @@ $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
             </script>
         </main>
     </div>
-    <script>
-        function confirmLogout() {
-            Swal.fire({
-                title: 'Are you sure?',
-                text: "You will be logged out of your account.",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Yes, log me out',
-                cancelButtonText: 'Cancel'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = '../../../backend/auth/logout.php';
-                }
-            });
-        }
-        const mobileBtn = document.getElementById('mobile-menu-btn');
-        const mobileMenu = document.getElementById('mobile-menu');
-        if (mobileBtn) {
-            mobileBtn.addEventListener('click', () => {
-                mobileMenu.classList.toggle('hidden');
-            });
-        }
-        
-        document.addEventListener("DOMContentLoaded", function() {
-            const civilStatus = document.getElementById("civil_status");
-            const spouseDependentsGroup = document.getElementById("spouse_dependents_group");
-
-            function toggleFields() {
-                if (civilStatus.value === "Single") {
-                    spouseDependentsGroup.style.display = "none";
-                } else {
-                    spouseDependentsGroup.style.display = "grid";
-                }
-            }
-            toggleFields();
-            civilStatus.addEventListener("change", toggleFields);
-        });
-    </script>
+    <script src="../../assets/js/userDashboard.js"></script>
 </body>
 
 </html>

@@ -2,13 +2,10 @@
 // populationController.php
 header('Content-Type: application/json');
 require_once "../config/db.php";
-require_once "../auth/auth_check.php";
 
 // Only allow Admin
 $allowedRoles = ['Admin'];
 $allowedStatus = ['Approved'];
-require_once "../auth/auth_check.php";
-
 // Get POST data
 $data = json_decode(file_get_contents('php://input'), true);
 $filterType = $data['filter_type'] ?? 'all';
@@ -25,22 +22,31 @@ switch ($filterType) {
         $whereDead  .= " AND DATE_FORMAT(u.dead_at, '%Y-%m') = :month ";
         $params['month'] = $data['month'];
         break;
+
     case 'year':
         $whereAlive .= " AND YEAR(b.birth_date) = :year ";
         $whereDead  .= " AND YEAR(u.dead_at) = :year ";
         $params['year'] = $data['year'];
         break;
+
     case 'day':
         $whereAlive .= " AND DATE(b.birth_date) = :day ";
         $whereDead  .= " AND DATE(u.dead_at) = :day ";
         $params['day'] = $data['day'];
         break;
+
     case 'range':
         $whereAlive .= " AND DATE(b.birth_date) BETWEEN :start AND :end ";
         $whereDead  .= " AND DATE(u.dead_at) BETWEEN :start AND :end ";
         $params['start'] = $data['start'];
         $params['end']   = $data['end'];
         break;
+
+    case 'last12months':
+        $whereAlive .= " AND b.birth_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) ";
+        $whereDead  .= " AND u.dead_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) ";
+        break;
+
     case 'all':
     default:
         // no extra filter
@@ -57,7 +63,7 @@ $stmtAlive = $pdo->prepare("
     ORDER BY period ASC
 ");
 $stmtAlive->execute($params);
-$aliveData = $stmtAlive->fetchAll(PDO::FETCH_KEY_PAIR); // period => alive count
+$aliveData = $stmtAlive->fetchAll(PDO::FETCH_KEY_PAIR);
 
 // Query Dead grouped by period
 $stmtDead = $pdo->prepare("
@@ -68,7 +74,7 @@ $stmtDead = $pdo->prepare("
     ORDER BY period ASC
 ");
 $stmtDead->execute($params);
-$deadData = $stmtDead->fetchAll(PDO::FETCH_KEY_PAIR); // period => dead count
+$deadData = $stmtDead->fetchAll(PDO::FETCH_KEY_PAIR);
 
 // Merge periods to ensure labels include all
 $labels = array_unique(array_merge(array_keys($aliveData), array_keys($deadData)));
@@ -86,4 +92,3 @@ echo json_encode([
     'alive' => $alive,
     'dead' => $dead
 ]);
-
